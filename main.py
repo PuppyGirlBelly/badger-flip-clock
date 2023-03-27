@@ -5,27 +5,26 @@ import badger2040
 # We're going to keep the badger on, so slow down the system clock if on battery
 badger2040.system_speed(badger2040.SYSTEM_SLOW)
 
-RTC = machine.RTC()
-badger = badger2040.Badger2040()
-badger.update_speed(badger2040.UPDATE_NORMAL)
-badger.font('sans')
-
 TEXT_SCALING = 3
 LINE_WIDTH = 10
 HALF_HEIGHT = int(badger2040.HEIGHT / 2)
-cursors = ["hour", "minute"]
+
+RTC = machine.RTC()
+BADGER = badger2040.Badger2040()
+BADGER.update_speed(badger2040.UPDATE_NORMAL)
+BADGER.font('sans')
+
+# Set up the buttons
+BUTTON_DOWN = machine.Pin(badger2040.BUTTON_DOWN, machine.Pin.IN, machine.Pin.PULL_DOWN)
+BUTTON_UP = machine.Pin(badger2040.BUTTON_UP, machine.Pin.IN, machine.Pin.PULL_DOWN)
+BUTTON_A = machine.Pin(badger2040.BUTTON_A, machine.Pin.IN, machine.Pin.PULL_DOWN)
+BUTTON_B = machine.Pin(badger2040.BUTTON_B, machine.Pin.IN, machine.Pin.PULL_DOWN)
+BUTTON_C = machine.Pin(badger2040.BUTTON_C, machine.Pin.IN, machine.Pin.PULL_DOWN)
+
+CURSORS = ["hour", "minute"]
 set_clock = False
 cursor = 0
 last = 0
-
-# Set up the buttons
-button_down = machine.Pin(badger2040.BUTTON_DOWN, machine.Pin.IN, machine.Pin.PULL_DOWN)
-button_up = machine.Pin(badger2040.BUTTON_UP, machine.Pin.IN, machine.Pin.PULL_DOWN)
-
-button_a = machine.Pin(badger2040.BUTTON_A, machine.Pin.IN, machine.Pin.PULL_DOWN)
-button_b = machine.Pin(badger2040.BUTTON_B, machine.Pin.IN, machine.Pin.PULL_DOWN)
-button_c = machine.Pin(badger2040.BUTTON_C, machine.Pin.IN, machine.Pin.PULL_DOWN)
-
 
 # Button handling function
 def button(pin):
@@ -35,42 +34,42 @@ def button(pin):
     if not pin.value():
         return
 
-    if button_a.value() and button_c.value():
+    if BUTTON_A.value() and BUTTON_C.value():
         machine.reset()
 
     adjust = 0
     changed = False
 
-    if pin == button_b:
+    if pin == BUTTON_B:
         set_clock = not set_clock
         changed = True
         if set_clock:
-            badger.update_speed(badger2040.UPDATE_TURBO)
+            BADGER.update_speed(badger2040.UPDATE_TURBO)
         if not set_clock:
             RTC.datetime((1970, 1, 1, 0, hour, minute, 0, 0))
-            badger.update_speed(badger2040.UPDATE_NORMAL)
+            BADGER.update_speed(badger2040.UPDATE_NORMAL)
 
     if set_clock:
         if pin == button_c:
             cursor += 1
-            cursor %= len(cursors)
+            cursor %= len(CURSORS)
 
-        if pin == button_a:
+        if pin == BUTTON_A:
             cursor -= 1
-            cursor %= len(cursors)
+            cursor %= len(CURSORS)
 
-        if pin == button_up:
+        if pin == BUTTON_UP:
             adjust = 1
 
-        if pin == button_down:
+        if pin == BUTTON_DOWN:
             adjust = -1
 
-        if cursors[cursor] == "hour":
+        if CURSORS[cursor] == "hour":
             hour += adjust
             hour %= 12
             if hour == 0:
                 hour = 12
-        if cursors[cursor] == "minute":
+        if CURSORS[cursor] == "minute":
             minute += adjust
             minute %= 60
 
@@ -79,46 +78,48 @@ def button(pin):
 
 
 # Register the button handling function with the buttons
-button_down.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
-button_up.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
-button_a.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
-button_b.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
-button_c.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
+BUTTON_DOWN.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
+BUTTON_UP.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
+BUTTON_A.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
+BUTTON_B.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
+BUTTON_C.irq(trigger=machine.Pin.IRQ_RISING, handler=button)
 
 def x_with_offset(text, x, width, scaling):
-    text_width = badger.measure_text(text, scaling)
+    text_width = BADGER.measure_text(text, scaling)
     text_offset = int(x + (width / 2) - (text_width / 2))
     return text_offset
 
-def draw_clock():
-
-    hour_str = str(hour)
-    hour_pos = x_with_offset(hour_str, 9, 134, TEXT_SCALING)
-    minute_str = "{:02}".format(minute)
-    minute_pos = x_with_offset(minute_str, 155, 134, TEXT_SCALING)
-
-    badger.pen(0)
-    badger.clear()
+def draw_background():
     background = bytearray(int(296*128/8))
     open("background.bin", "r").readinto(background)
-    badger.image(background)
-    badger.pen(15)
-    badger.thickness(LINE_WIDTH)
-    badger.text(hour_str, hour_pos, HALF_HEIGHT, TEXT_SCALING)
-    badger.text(minute_str, minute_pos, HALF_HEIGHT, TEXT_SCALING)
-    badger.pen(0)
-    badger.thickness(3)
-    badger.line(10, HALF_HEIGHT, 142, HALF_HEIGHT)
-    badger.line(155, HALF_HEIGHT, 286, HALF_HEIGHT)
+    BADGER.image(background)
+
+def draw_centered_text(str, x_pos, y_pos, width, scaling):
+    str_pos = x_with_offset(str, x_pos, width, scaling)
+    BADGER.text(str, str_pos, y_pos, scaling)
+
+def draw_clock():
+    hour_str = str(hour)
+    minute_str = "{:02}".format(minute)
+
+    draw_background()
+    BADGER.pen(15)
+    BADGER.thickness(LINE_WIDTH)
+    draw_centered_text(hour_str, 9, HALF_HEIGHT, 134, TEXT_SCALING)
+    draw_centered_text(minute_str, 155, HALF_HEIGHT, 134, TEXT_SCALING)
+    BADGER.pen(0)
+    BADGER.thickness(3)
+    BADGER.line(10, HALF_HEIGHT, 142, HALF_HEIGHT)
+    BADGER.line(155, HALF_HEIGHT, 286, HALF_HEIGHT)
 
     if set_clock:
-        badger.pen(8)
-        if cursors[cursor] == "hour":
-            badger.line(10, 96, 142, 96)
-        if cursors[cursor] == "minute":
-            badger.line(155, 96, 286, 96)
+        BADGER.pen(8)
+        if CURSORS[cursor] == "hour":
+            BADGER.line(10, 96, 142, 96)
+        if CURSORS[cursor] == "minute":
+            BADGER.line(155, 96, 286, 96)
 
-    badger.update()
+    BADGER.update()
 
 _, _, _, _, hour, minute, _, _ = RTC.datetime()
 
